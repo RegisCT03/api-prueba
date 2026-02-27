@@ -1,24 +1,32 @@
-# Docker Compose para PostgreSQL
+version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: mindstack
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres123
-      POSTGRES_DB: mindstackdb
+  backend:
+    build: .
+    container_name: mindStack_back
+    restart: always
+    env_file:
+      - .env
     ports:
-      - "127.0.0.1:5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./db:/scripts:ro  # Scripts accesibles en /scripts (NO se autoejecuttan)
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d mindstackdb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - "8080:8080"
+    networks:
+      - mindstack_network       # misma red que el contenedor de BD
+    depends_on:
+      - db_check
 
-volumes:
-  postgres_data:
+  # Pequeño servicio que espera a que la BD esté lista antes de arrancar el backend
+  db_check:
+    image: postgres:15-alpine
+    networks:
+      - mindstack_network
+    entrypoint: >
+      sh -c "until pg_isready -h db -U ${DB_USER:-postgres}; do
+        echo 'Esperando a la BD...'; sleep 2;
+      done; echo 'BD lista'"
+    env_file:
+      - .env
+    restart: "no"
+
+networks:
+  mindstack_network:
+    external: true              # NO la crea, solo la usa (la crea el repo de BD)
