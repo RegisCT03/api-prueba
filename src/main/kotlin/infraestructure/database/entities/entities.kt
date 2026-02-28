@@ -18,7 +18,6 @@ object MoodTable : Table("mood") {
     override val primaryKey = PrimaryKey(id)
 }
 
-// CORRECCIÓN: nombre "semaforo" (no "semaphore") — coincide con seed y código
 object SemaphoreTable : Table("semaphore") {
     val id          = integer("id").autoIncrement()
     val color       = varchar("color", 100)
@@ -26,7 +25,6 @@ object SemaphoreTable : Table("semaphore") {
     override val primaryKey = PrimaryKey(id)
 }
 
-// CORRECCIÓN: nombre "juego" (no "game") — coincide con seed y código
 object GameTable : Table("game") {
     val id   = integer("id").autoIncrement()
     val name = varchar("name", 100)
@@ -40,8 +38,7 @@ object UsersTable : Table("users") {
     val name            = varchar("name", 100)
     val lastName        = varchar("last_name", 100)
     val email           = varchar("email", 255)
-    // CORRECCIÓN: VARCHAR(255) — bcrypt genera hashes de 60+ chars
-    val password        = varchar("password", 255)
+    val password        = varchar("password", 255)   // 255 requerido por bcrypt
     val dateOfBirth     = date("date_of_birth").nullable()
     val gender          = varchar("gender", 100).nullable()
     val idRol           = integer("id_rol").references(RolTable.id).nullable()
@@ -54,31 +51,31 @@ object UsersTable : Table("users") {
 
 object StreaksHistoryTable : Table("streaks_history") {
     val id        = integer("id").autoIncrement()
-    // CORRECCIÓN: "userId" coincide con el nombre que usa Exposed internamente
     val userId    = integer("user_id").references(UsersTable.id).nullable()
     val startDate = date("start_date")
     val endDate   = date("end_date").nullable()
-    val daysCount = integer("days_count").default(0)
+    // FIX: default = 1, no 0. Un streak recién creado empieza en el día 1.
+    // El default 0 causaba el ALTER TABLE que PostgreSQL bloqueaba por la vista.
+    val daysCount = integer("days_count").default(1)
     override val primaryKey = PrimaryKey(id)
 }
 
 // ─── Daily Check-in ───────────────────────────────────────────────────────────
 
 object DailyCheckinTable : Table("daily_checkin") {
-    val id         = integer("id").autoIncrement()
-    val idUser     = integer("id_user").references(UsersTable.id)
-    // Ambos nullable: se llena primero sleepStart (Zzz), luego sleepEnd (Levantarse)
-    val sleepStart = varchar("sleep_start", 30).nullable()
-    val sleepEnd   = varchar("sleep_end", 30).nullable()
-    val hoursSleep = double("hours_sleep").nullable()
-    val idMood     = integer("id_mood").references(MoodTable.id).nullable()
-    // CORRECCIÓN: nombre "id_status" (no "id_semaphore")
-    val idSemaphore   = integer("id_semaphore").references(SemaphoreTable.id).nullable()
-    val dateTime   = timestamp("date_time")
-    val sleepDebt  = double("sleep_debt").nullable()
-    val batteryCog = integer("battery_cog").nullable()
-    // CORRECCIÓN: nombre "fatiga" (no "fatigue")
-    val fatiga     = integer("fatigue").nullable()
+    val id          = integer("id").autoIncrement()
+    val idUser      = integer("id_user").references(UsersTable.id)
+    val sleepStart  = varchar("sleep_start", 100).nullable()
+    val sleepEnd    = varchar("sleep_end", 100).nullable()
+    val hoursSleep  = double("hours_sleep").nullable()
+    val idMood      = integer("id_mood").references(MoodTable.id).nullable()
+    val idSemaphore = integer("id_semaphore").references(SemaphoreTable.id).nullable()
+    val dateTime    = timestamp("date_time")
+    val sleepDebt   = double("sleep_debt").nullable()
+    val batteryCog  = integer("battery_cog").nullable()
+    // FIX: el nombre de columna en BD es "fatigue" — Exposed usa este string
+    // para construir el SQL. El campo Kotlin se llama "fatiga" pero apunta a "fatigue".
+    val fatiga      = integer("fatigue").nullable()
     override val primaryKey = PrimaryKey(id)
 }
 
@@ -89,8 +86,7 @@ object GameSessionsTable : Table("game_sessions") {
     val idDailyCheckin = integer("id_daily_checkin").references(DailyCheckinTable.id)
     val startTime      = timestamp("start_time")
     val endTime        = timestamp("end_time")
-    // CORRECCIÓN: nombre "id_juego" (no "id_game")
-    val idGame        = integer("id_game").references(GameTable.id).nullable()
+    val idGame         = integer("id_game").references(GameTable.id).nullable()
     val scoreValue     = double("score_value").nullable()
     val battery        = integer("battery").nullable()
     val metadata       = text("metadata").nullable()
@@ -101,10 +97,11 @@ object GameSessionsTable : Table("game_sessions") {
 
 object MessageTable : Table("message") {
     val id             = integer("id").autoIncrement()
-    // CORRECCIÓN: ambos nullable — un mensaje viene de check-in O de juego, no ambos
+    // FIX: ambos nullable — mensaje de sleep O de juego, nunca los dos a la vez
     val idDailyCheckin = integer("id_daily_checkin")
         .references(DailyCheckinTable.id)
         .nullable()
+    // FIX: columna id_game_session agregada (faltaba — causaba 500 en juegos)
     val idGameSession  = integer("id_game_session")
         .references(GameSessionsTable.id)
         .nullable()

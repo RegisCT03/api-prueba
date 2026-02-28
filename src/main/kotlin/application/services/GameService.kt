@@ -20,13 +20,19 @@ class GameService(
     private val gameSessionRepo: IGameSessionRepository,
     private val checkinRepo: IDailyCheckinRepository,
     private val messageRepo: IMessageRepository,
-    private val userRepo: IUserRepository           // NUEVO: para consultar idRol
+    private val userRepo: IUserRepository
 ) : IGameService {
 
     override suspend fun submitNeuroReflex(userId: Int, req: NeuroReflexRequest): NeuroReflexResponse {
         val checkin = checkinRepo.findById(req.idDailyCheckin)
             ?: throw IllegalArgumentException("Check-in no encontrado.")
-        if (checkin.idUser != userId) throw IllegalArgumentException("No autorizado.")
+        if (checkin.idUser != userId)
+            throw IllegalArgumentException("No autorizado.")
+
+        // FIX: validar que el check-in esté cerrado (sleepEnd != null)
+        // No se puede jugar si aún no se ha registrado el despertar
+        if (checkin.sleepEnd == null)
+            throw IllegalArgumentException("Debes registrar tu despertar antes de jugar.")
 
         val averageMs = (req.reactionTime1Ms + req.reactionTime2Ms + req.reactionTime3Ms) / 3.0
         val battery   = CognitiveBatteryEngine.neuroReflexBattery(averageMs)
@@ -36,14 +42,20 @@ class GameService(
 
         val session = gameSessionRepo.create(
             idDailyCheckin = req.idDailyCheckin,
-            idGame        = JUEGO_NEURO_REFLEX,
+            idGame         = JUEGO_NEURO_REFLEX,
             scoreValue     = averageMs,
             battery        = battery,
             metadata       = metadata
         )
 
         refreshCombinedBattery(req.idDailyCheckin)
-        messageRepo.create(null, session.id, result.recommendation)
+
+        // FIX: el mensaje de juego se asocia al sessionId, no al checkinId
+        messageRepo.create(
+            idDailyCheckin = null,
+            idGameSession  = session.id,
+            message        = result.recommendation
+        )
 
         return NeuroReflexResponse(
             sessionId      = session.id,
@@ -57,12 +69,19 @@ class GameService(
     override suspend fun submitMemoryGame(userId: Int, req: MemoryGameRequest): MemoryGameResponse {
         if (req.totalRequired <= 0)
             throw IllegalArgumentException("totalRequired debe ser mayor a 0.")
+        if (req.correctHits < 0)
+            throw IllegalArgumentException("correctHits no puede ser negativo.")
         if (req.correctHits > req.totalRequired)
             throw IllegalArgumentException("correctHits no puede superar totalRequired.")
 
         val checkin = checkinRepo.findById(req.idDailyCheckin)
             ?: throw IllegalArgumentException("Check-in no encontrado.")
-        if (checkin.idUser != userId) throw IllegalArgumentException("No autorizado.")
+        if (checkin.idUser != userId)
+            throw IllegalArgumentException("No autorizado.")
+
+        // FIX: validar que el check-in esté cerrado
+        if (checkin.sleepEnd == null)
+            throw IllegalArgumentException("Debes registrar tu despertar antes de jugar.")
 
         val accuracy = (req.correctHits.toDouble() / req.totalRequired.toDouble()) * 100.0
         val battery  = CognitiveBatteryEngine.memoryBattery(accuracy)
@@ -72,14 +91,20 @@ class GameService(
 
         val session = gameSessionRepo.create(
             idDailyCheckin = req.idDailyCheckin,
-            idGame        = JUEGO_MEMORY,
+            idGame         = JUEGO_MEMORY,
             scoreValue     = accuracy,
             battery        = battery,
             metadata       = metadata
         )
 
         refreshCombinedBattery(req.idDailyCheckin)
-        messageRepo.create(null, session.id, result.recommendation)
+
+        // FIX: el mensaje de juego se asocia al sessionId, no al checkinId
+        messageRepo.create(
+            idDailyCheckin = null,
+            idGameSession  = session.id,
+            message        = result.recommendation
+        )
 
         return MemoryGameResponse(
             sessionId       = session.id,
@@ -93,22 +118,33 @@ class GameService(
     override suspend fun getCombinedBattery(userId: Int, checkinId: Int): CombinedBatteryResponse {
         val checkin = checkinRepo.findById(checkinId)
             ?: throw IllegalArgumentException("Check-in no encontrado.")
-        if (checkin.idUser != userId) throw IllegalArgumentException("No autorizado.")
+        if (checkin.idUser != userId)
+            throw IllegalArgumentException("No autorizado.")
 
-        val sessions   = gameSessionRepo.findByCheckin(checkinId)
-        val batteryA   = sessions.firstOrNull { it.idGame == JUEGO_NEURO_REFLEX }?.battery
-        val batteryB   = sessions.firstOrNull { it.idGame == JUEGO_MEMORY }?.battery
-        val combined   = CognitiveBatteryEngine.combinedBattery(batteryA, batteryB)
-        val cognitive  = CognitiveBatteryEngine.evaluate(combined)
+        val sessions = gameSessionRepo.findByCheckin(checkinId)
+        val batteryA = sessions.firstOrNull { it.idGame == JUEGO_NEURO_REFLEX }?.battery
+        val batteryB = sessions.firstOrNull { it.idGame == JUEGO_MEMORY }?.battery
+        val combined = CognitiveBatteryEngine.combinedBattery(batteryA, batteryB)
+        val cognitive = CognitiveBatteryEngine.evaluate(combined)
 
-        val semaphoreColor = when (checkin.idSemaphore) { 1 -> "GREEN"; 2 -> "YELLOW"; else -> "RED" }
-        val globalRec      = CognitiveBatteryEngine.globalRecommendation(semaphoreColor, combined)
+        // FIX: leer idSemaphore del modelo (ya corregido en entities + repository)
+        // Si aún es null (check-in sin cerrar), devolver semáforo desconocido
+        val semaphoreColor = when (checkin.idSemaphore) {
+            1    -> "GREEN"
+            2    -> "YELLOW"
+            3    -> "RED"
+            else -> "UNKNOWN"   // check-in sin sleepEnd todavía
+        }
 
-        // Mensaje personalizado con rol del usuario y batería final
+        val globalRec = if (semaphoreColor == "UNKNOWN")
+            "⚪ Aún no has registrado tu despertar. Completa el check-in de sueño primero."
+        else
+            CognitiveBatteryEngine.globalRecommendation(semaphoreColor, combined)
+
         val user      = userRepo.findById(userId)
         val msgResult = MessageEngine.getMessage(
             idRol          = user?.idRol,
-            semaphoreColor = semaphoreColor,
+            semaphoreColor = if (semaphoreColor == "UNKNOWN") "RED" else semaphoreColor,
             batteryLevel   = combined
         )
 
@@ -116,7 +152,7 @@ class GameService(
             finalBattery         = combined,
             fatiga               = (100 - combined).coerceAtLeast(0),
             semaphoreColor       = semaphoreColor,
-            cognitiveSemaphore      = cognitive.label,
+            cognitiveSemaphore   = cognitive.label,
             globalRecommendation = globalRec,
             personalizedMessage  = PersonalizedMessage(
                 prefix       = msgResult.prefix,
@@ -127,10 +163,15 @@ class GameService(
         )
     }
 
+    // ─── Helpers privados ─────────────────────────────────────────────────────
+
     private suspend fun refreshCombinedBattery(checkinId: Int) {
         val sessions = gameSessionRepo.findByCheckin(checkinId)
         val batteryA = sessions.firstOrNull { it.idGame == JUEGO_NEURO_REFLEX }?.battery
         val batteryB = sessions.firstOrNull { it.idGame == JUEGO_MEMORY }?.battery
-        checkinRepo.updateBattery(checkinId, CognitiveBatteryEngine.combinedBattery(batteryA, batteryB))
+        checkinRepo.updateBattery(
+            checkinId,
+            CognitiveBatteryEngine.combinedBattery(batteryA, batteryB)
+        )
     }
 }

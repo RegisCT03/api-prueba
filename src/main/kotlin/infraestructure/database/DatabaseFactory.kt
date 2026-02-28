@@ -41,6 +41,9 @@ object DatabaseFactory {
         logger.info("Database connected: ${config.jdbc}")
 
         transaction(database) {
+            exec("DROP VIEW IF EXISTS vw_dashboard;")
+            exec("DROP VIEW IF EXISTS vw_history;")
+            exec("DROP VIEW IF EXISTS vw_user_profile;")
             // Orden importa: primero catálogos, luego tablas que los referencian
             SchemaUtils.createMissingTablesAndColumns(
                 RolTable,
