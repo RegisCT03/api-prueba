@@ -19,7 +19,7 @@ data class DailyCheckin(
     val id: Int = 0,
     val idUser: Int,
     val sleepStart: String? = null,
-    val sleepEnd: String? = null,
+    val sleepEnd: String? = null,         // null mientras no presione Levantarse
     val hoursSleep: Double? = null,
     val idMood: Int? = null,
     val idStatus: Int? = null,
@@ -33,7 +33,7 @@ data class DailyCheckin(
 data class GameSession(
     val id: Int = 0,
     val idDailyCheckin: Int,
-    val idJuego: Int,
+    val idGame: Int,
     val startTime: String? = null,
     val endTime: String? = null,
     val scoreValue: Double? = null,
@@ -47,6 +47,16 @@ data class Message(
     val idDailyCheckin: Int? = null,
     val idGameSession: Int? = null,
     val message: String
+)
+
+// ─── NUEVO ────────────────────────────────────────────────────────────────────
+@Serializable
+data class StreakInfo(
+    val id: Int = 0,
+    val userId: Int,
+    val startDate: String,        // formato "2025-02-01"
+    val endDate: String? = null,  // null = racha activa
+    val daysCount: Int = 1
 )
 
 @Serializable

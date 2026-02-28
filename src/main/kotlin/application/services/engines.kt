@@ -9,7 +9,7 @@ object SemaphoreEngine {
         val color: TrafficLight,
         val label: String,
         val recommendation: String,
-        val statusId: Int      // 1=verde, 2=amarillo, 3=rojo  (FK → semaforo)
+        val statusId: Int       // 1=verde, 2=amarillo, 3=rojo  (FK → semaforo)
     )
 
     fun evaluate(sleepPercent: Double, moodScore: Int): SemaphoreResult = when {
@@ -46,7 +46,7 @@ object CognitiveBatteryEngine {
     private const val REACTION_BEST_MS  = 250.0
     private const val REACTION_WORST_MS = 650.0
 
-    // Juego A: menor ms = mejor. 250ms→100%, 650ms→0%
+    // Juego A — Taptap: menor ms = mejor. 250ms → 100%, 650ms → 0%
     fun neuroReflexBattery(averageMs: Double): Int = when {
         averageMs <= REACTION_BEST_MS  -> 100
         averageMs >= REACTION_WORST_MS -> 0
@@ -54,11 +54,11 @@ object CognitiveBatteryEngine {
             .toInt().coerceIn(0, 100)
     }
 
-    // Juego B: precisión % directo como batería
+    // Juego B — Memorama: precisión % directo como batería
     fun memoryBattery(accuracyPercent: Double): Int =
         accuracyPercent.toInt().coerceIn(0, 100)
 
-    // Combinada: promedio de los juegos jugados
+    // Combinada: promedio de los juegos completados
     fun combinedBattery(batteryA: Int?, batteryB: Int?): Int {
         val values = listOfNotNull(batteryA, batteryB)
         return if (values.isEmpty()) 0 else values.average().toInt()
@@ -82,7 +82,6 @@ object CognitiveBatteryEngine {
         )
     }
 
-    // ─── Cruce Semáforo + Batería → Recomendación global ─────────────────────
     fun globalRecommendation(semaphoreColor: String, batteryLevel: Int): String = when {
         semaphoreColor == "GREEN"  && batteryLevel >= 75 ->
             "🟢 Momento ÓPTIMO. Sueño, ánimo y concentración alineados. Es el mejor momento para estudiar o proyectos importantes."

@@ -29,4 +29,5 @@ services:
 
 networks:
   mindstack_network:
-    external: true              # NO la crea, solo la usa (la crea el repo de BD)
+    external: true     # NO la crea, solo la usa (la crea el repo de BD)
+    name: mindstack_network

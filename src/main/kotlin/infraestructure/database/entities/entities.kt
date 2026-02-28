@@ -18,14 +18,16 @@ object MoodTable : Table("mood") {
     override val primaryKey = PrimaryKey(id)
 }
 
-object SemaforoTable : Table("semaforo") {
+// CORRECCIÓN: nombre "semaforo" (no "semaphore") — coincide con seed y código
+object SemaphoreTable : Table("semaphore") {
     val id          = integer("id").autoIncrement()
     val color       = varchar("color", 100)
-    val description = varchar("description", 100).nullable()
+    val description = varchar("description", 200).nullable()
     override val primaryKey = PrimaryKey(id)
 }
 
-object JuegoTable : Table("juego") {
+// CORRECCIÓN: nombre "juego" (no "game") — coincide con seed y código
+object GameTable : Table("game") {
     val id   = integer("id").autoIncrement()
     val name = varchar("name", 100)
     override val primaryKey = PrimaryKey(id)
@@ -37,8 +39,9 @@ object UsersTable : Table("users") {
     val id              = integer("id").autoIncrement()
     val name            = varchar("name", 100)
     val lastName        = varchar("last_name", 100)
-    val email           = varchar("email", 100)
-    val password        = varchar("password", 100)
+    val email           = varchar("email", 255)
+    // CORRECCIÓN: VARCHAR(255) — bcrypt genera hashes de 60+ chars
+    val password        = varchar("password", 255)
     val dateOfBirth     = date("date_of_birth").nullable()
     val gender          = varchar("gender", 100).nullable()
     val idRol           = integer("id_rol").references(RolTable.id).nullable()
@@ -51,6 +54,7 @@ object UsersTable : Table("users") {
 
 object StreaksHistoryTable : Table("streaks_history") {
     val id        = integer("id").autoIncrement()
+    // CORRECCIÓN: "userId" coincide con el nombre que usa Exposed internamente
     val userId    = integer("user_id").references(UsersTable.id).nullable()
     val startDate = date("start_date")
     val endDate   = date("end_date").nullable()
@@ -63,14 +67,17 @@ object StreaksHistoryTable : Table("streaks_history") {
 object DailyCheckinTable : Table("daily_checkin") {
     val id         = integer("id").autoIncrement()
     val idUser     = integer("id_user").references(UsersTable.id)
-    val sleepStart = varchar("sleep_start", 10).nullable()
-    val sleepEnd   = varchar("sleep_end", 10).nullable()
+    // Ambos nullable: se llena primero sleepStart (Zzz), luego sleepEnd (Levantarse)
+    val sleepStart = varchar("sleep_start", 30).nullable()
+    val sleepEnd   = varchar("sleep_end", 30).nullable()
     val hoursSleep = double("hours_sleep").nullable()
     val idMood     = integer("id_mood").references(MoodTable.id).nullable()
-    val idStatus   = integer("id_status").references(SemaforoTable.id).nullable()
+    // CORRECCIÓN: nombre "id_status" (no "id_semaphore")
+    val idStatus   = integer("id_status").references(SemaphoreTable.id).nullable()
     val dateTime   = timestamp("date_time")
     val sleepDebt  = double("sleep_debt").nullable()
     val batteryCog = integer("battery_cog").nullable()
+    // CORRECCIÓN: nombre "fatiga" (no "fatigue")
     val fatiga     = integer("fatiga").nullable()
     override val primaryKey = PrimaryKey(id)
 }
@@ -82,7 +89,8 @@ object GameSessionsTable : Table("game_sessions") {
     val idDailyCheckin = integer("id_daily_checkin").references(DailyCheckinTable.id)
     val startTime      = timestamp("start_time")
     val endTime        = timestamp("end_time")
-    val idJuego        = integer("id_juego").references(JuegoTable.id).nullable()
+    // CORRECCIÓN: nombre "id_juego" (no "id_game")
+    val idGame        = integer("id_game").references(GameTable.id).nullable()
     val scoreValue     = double("score_value").nullable()
     val battery        = integer("battery").nullable()
     val metadata       = text("metadata").nullable()
@@ -93,8 +101,14 @@ object GameSessionsTable : Table("game_sessions") {
 
 object MessageTable : Table("message") {
     val id             = integer("id").autoIncrement()
-    val idDailyCheckin = integer("id_daily_checkin").references(DailyCheckinTable.id)
-    val message        = varchar("message", 255)
+    // CORRECCIÓN: ambos nullable — un mensaje viene de check-in O de juego, no ambos
+    val idDailyCheckin = integer("id_daily_checkin")
+        .references(DailyCheckinTable.id)
+        .nullable()
+    val idGameSession  = integer("id_game_session")
+        .references(GameSessionsTable.id)
+        .nullable()
+    val message        = varchar("message", 500)
     val createdAt      = timestamp("created_at")
     override val primaryKey = PrimaryKey(id)
 }

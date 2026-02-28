@@ -2,11 +2,11 @@ package com.MindStack.infraestructure.database
 
 import com.MindStack.infraestructure.database.entities.DailyCheckinTable
 import com.MindStack.infraestructure.database.entities.GameSessionsTable
-import com.MindStack.infraestructure.database.entities.JuegoTable
+import com.MindStack.infraestructure.database.entities.GameTable
 import com.MindStack.infraestructure.database.entities.MessageTable
 import com.MindStack.infraestructure.database.entities.MoodTable
 import com.MindStack.infraestructure.database.entities.RolTable
-import com.MindStack.infraestructure.database.entities.SemaforoTable
+import com.MindStack.infraestructure.database.entities.SemaphoreTable
 import com.MindStack.infraestructure.database.entities.StreaksHistoryTable
 import com.MindStack.infraestructure.database.entities.UsersTable
 import com.zaxxer.hikari.HikariConfig
@@ -41,11 +41,12 @@ object DatabaseFactory {
         logger.info("Database connected: ${config.jdbc}")
 
         transaction(database) {
+            // Orden importa: primero catálogos, luego tablas que los referencian
             SchemaUtils.createMissingTablesAndColumns(
                 RolTable,
                 MoodTable,
-                SemaforoTable,
-                JuegoTable,
+                SemaphoreTable,      // CORRECCIÓN: nombre "semaforo"
+                GameTable,         // CORRECCIÓN: nombre "juego"
                 UsersTable,
                 StreaksHistoryTable,
                 DailyCheckinTable,

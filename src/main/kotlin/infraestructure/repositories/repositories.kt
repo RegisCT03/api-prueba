@@ -3,22 +3,25 @@ package com.MindStack.infraestructure.repositories
 import com.MindStack.domain.interfaces.repositories.IDailyCheckinRepository
 import com.MindStack.domain.interfaces.repositories.IGameSessionRepository
 import com.MindStack.domain.interfaces.repositories.IMessageRepository
+import com.MindStack.domain.interfaces.repositories.IStreakRepository
 import com.MindStack.domain.interfaces.repositories.IUserRepository
 import com.MindStack.domain.models.DailyCheckin
 import com.MindStack.domain.models.GameSession
 import com.MindStack.domain.models.Message
+import com.MindStack.domain.models.StreakInfo
 import com.MindStack.domain.models.User
 import com.MindStack.infraestructure.database.DatabaseFactory.dbQuery
 import com.MindStack.infraestructure.database.entities.DailyCheckinTable
 import com.MindStack.infraestructure.database.entities.GameSessionsTable
 import com.MindStack.infraestructure.database.entities.MessageTable
+import com.MindStack.infraestructure.database.entities.StreaksHistoryTable
 import com.MindStack.infraestructure.database.entities.UsersTable
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.plus
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import java.time.Instant
 import java.time.LocalDate
@@ -92,6 +95,7 @@ class UserRepository : IUserRepository {
 
 class DailyCheckinRepository : IDailyCheckinRepository {
 
+    // ─── Método legacy (mantener para compatibilidad) ─────────────────────────
     override suspend fun create(
         idUser: Int, sleepStart: String, sleepEnd: String,
         hoursSleep: Double, idMood: Int, idStatus: Int,
@@ -124,6 +128,60 @@ class DailyCheckinRepository : IDailyCheckinRepository {
             batteryCog = battery,
             fatiga     = (100 - battery).coerceAtLeast(0)
         )
+    }
+
+    // ─── NUEVO: paso 1 — botón Zzz ───────────────────────────────────────────
+    override suspend fun createOpen(idUser: Int, sleepStart: String): DailyCheckin = dbQuery {
+        val now = Instant.now()
+        val insertedId = DailyCheckinTable.insert {
+            it[DailyCheckinTable.idUser]     = idUser
+            it[DailyCheckinTable.sleepStart] = sleepStart
+            it[DailyCheckinTable.dateTime]   = now
+            // Todos los demás campos quedan null hasta que presione Levantarse
+        } get DailyCheckinTable.id
+
+        DailyCheckin(
+            id         = insertedId,
+            idUser     = idUser,
+            sleepStart = sleepStart,
+            dateTime   = now.toString()
+        )
+    }
+
+    // ─── NUEVO: busca el check-in de hoy sin sleep_end ───────────────────────
+    override suspend fun findOpenTodayByUser(userId: Int): DailyCheckin? = dbQuery {
+        val startOfDay = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC)
+        DailyCheckinTable
+            .select {
+                (DailyCheckinTable.idUser eq userId) and
+                        (DailyCheckinTable.dateTime greaterEq startOfDay) and
+                        (DailyCheckinTable.sleepEnd.isNull())
+            }
+            .orderBy(DailyCheckinTable.dateTime, SortOrder.DESC)
+            .map { toModel(it) }
+            .firstOrNull()
+    }
+
+    // ─── NUEVO: paso 2 — botón Levantarse ────────────────────────────────────
+    override suspend fun closeCheckin(
+        checkinId: Int,
+        sleepEnd: String,
+        hoursSleep: Double,
+        idMood: Int,
+        idStatus: Int,
+        sleepDebt: Double,
+        battery: Int
+    ): DailyCheckin = dbQuery {
+        DailyCheckinTable.update({ DailyCheckinTable.id eq checkinId }) {
+            it[DailyCheckinTable.sleepEnd]   = sleepEnd
+            it[DailyCheckinTable.hoursSleep] = hoursSleep
+            it[DailyCheckinTable.idMood]     = idMood
+            it[DailyCheckinTable.idStatus]   = idStatus
+            it[DailyCheckinTable.sleepDebt]  = sleepDebt
+            it[DailyCheckinTable.batteryCog] = battery
+            it[DailyCheckinTable.fatiga]     = (100 - battery).coerceAtLeast(0)
+        }
+        findById(checkinId)!!
     }
 
     override suspend fun findById(id: Int): DailyCheckin? = dbQuery {
@@ -178,13 +236,13 @@ class DailyCheckinRepository : IDailyCheckinRepository {
 class GameSessionRepository : IGameSessionRepository {
 
     override suspend fun create(
-        idDailyCheckin: Int, idJuego: Int,
+        idDailyCheckin: Int, idGame: Int,
         scoreValue: Double, battery: Int, metadata: String
     ): GameSession = dbQuery {
         val now = Instant.now()
         val insertedId = GameSessionsTable.insert {
             it[GameSessionsTable.idDailyCheckin] = idDailyCheckin
-            it[GameSessionsTable.idJuego]        = idJuego
+            it[GameSessionsTable.idGame]        = idGame
             it[GameSessionsTable.startTime]      = now
             it[GameSessionsTable.endTime]        = now
             it[GameSessionsTable.scoreValue]     = scoreValue
@@ -195,7 +253,7 @@ class GameSessionRepository : IGameSessionRepository {
         GameSession(
             id             = insertedId,
             idDailyCheckin = idDailyCheckin,
-            idJuego        = idJuego,
+            idGame        = idGame,
             startTime      = now.toString(),
             endTime        = now.toString(),
             scoreValue     = scoreValue,
@@ -211,7 +269,7 @@ class GameSessionRepository : IGameSessionRepository {
                 GameSession(
                     id             = row[GameSessionsTable.id],
                     idDailyCheckin = row[GameSessionsTable.idDailyCheckin],
-                    idJuego        = row[GameSessionsTable.idJuego] ?: 0,
+                    idGame        = row[GameSessionsTable.idGame] ?: 0,
                     startTime      = row[GameSessionsTable.startTime].toString(),
                     endTime        = row[GameSessionsTable.endTime].toString(),
                     scoreValue     = row[GameSessionsTable.scoreValue],
@@ -230,7 +288,9 @@ class MessageRepository : IMessageRepository {
         idDailyCheckin: Int?, idGameSession: Int?, message: String
     ): Message = dbQuery {
         val insertedId = MessageTable.insert {
-            it[MessageTable.idDailyCheckin] = idDailyCheckin ?: 0
+            // CORRECCIÓN: asignar null directamente (campo nullable), no '?: 0'
+            it[MessageTable.idDailyCheckin] = idDailyCheckin
+            it[MessageTable.idGameSession]  = idGameSession
             it[MessageTable.message]        = message
             it[MessageTable.createdAt]      = Instant.now()
         } get MessageTable.id
@@ -250,9 +310,69 @@ class MessageRepository : IMessageRepository {
                 Message(
                     id             = row[MessageTable.id],
                     idDailyCheckin = row[MessageTable.idDailyCheckin],
-                    idGameSession  = null,
+                    idGameSession  = row[MessageTable.idGameSession],
                     message        = row[MessageTable.message]
                 )
             }
     }
+}
+
+// ─── StreakRepository (NUEVO) ─────────────────────────────────────────────────
+
+class StreakRepository : IStreakRepository {
+
+    override suspend fun findActive(userId: Int): StreakInfo? = dbQuery {
+        StreaksHistoryTable
+            .select {
+                (StreaksHistoryTable.userId eq userId) and
+                        StreaksHistoryTable.endDate.isNull()
+            }
+            .orderBy(StreaksHistoryTable.startDate, SortOrder.DESC)
+            .map { toModel(it) }
+            .firstOrNull()
+    }
+
+    override suspend fun createNew(userId: Int): StreakInfo = dbQuery {
+        val today = LocalDate.now()
+        val id = StreaksHistoryTable.insert {
+            it[StreaksHistoryTable.userId]    = userId
+            it[StreaksHistoryTable.startDate] = today
+            it[StreaksHistoryTable.daysCount] = 1
+        } get StreaksHistoryTable.id
+        StreakInfo(id = id, userId = userId, startDate = today.toString(), daysCount = 1)
+    }
+
+    override suspend fun increment(streakId: Int): StreakInfo = dbQuery {
+        StreaksHistoryTable.update({ StreaksHistoryTable.id eq streakId }) {
+            it.update(StreaksHistoryTable.daysCount, StreaksHistoryTable.daysCount + 1)
+        }
+        StreaksHistoryTable.select { StreaksHistoryTable.id eq streakId }
+            .map { toModel(it) }.first()
+    }
+
+    override suspend fun close(streakId: Int): Unit = dbQuery {
+        StreaksHistoryTable.update({ StreaksHistoryTable.id eq streakId }) {
+            it[endDate] = LocalDate.now()
+        }
+    }
+
+    override suspend fun longestStreak(userId: Int): Int = dbQuery {
+        StreaksHistoryTable
+            .select { StreaksHistoryTable.userId eq userId }
+            .maxOfOrNull { it[StreaksHistoryTable.daysCount] } ?: 0
+    }
+
+    override suspend fun totalDays(userId: Int): Int = dbQuery {
+        StreaksHistoryTable
+            .select { StreaksHistoryTable.userId eq userId }
+            .sumOf { it[StreaksHistoryTable.daysCount] }
+    }
+
+    private fun toModel(row: ResultRow) = StreakInfo(
+        id        = row[StreaksHistoryTable.id],
+        userId    = row[StreaksHistoryTable.userId] ?: 0,
+        startDate = row[StreaksHistoryTable.startDate].toString(),
+        endDate   = row[StreaksHistoryTable.endDate]?.toString(),
+        daysCount = row[StreaksHistoryTable.daysCount]
+    )
 }
