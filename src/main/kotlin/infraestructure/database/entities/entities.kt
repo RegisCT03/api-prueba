@@ -73,12 +73,12 @@ object DailyCheckinTable : Table("daily_checkin") {
     val hoursSleep = double("hours_sleep").nullable()
     val idMood     = integer("id_mood").references(MoodTable.id).nullable()
     // CORRECCIÓN: nombre "id_status" (no "id_semaphore")
-    val idStatus   = integer("id_status").references(SemaphoreTable.id).nullable()
+    val idSemaphore   = integer("id_semaphore").references(SemaphoreTable.id).nullable()
     val dateTime   = timestamp("date_time")
     val sleepDebt  = double("sleep_debt").nullable()
     val batteryCog = integer("battery_cog").nullable()
     // CORRECCIÓN: nombre "fatiga" (no "fatigue")
-    val fatiga     = integer("fatiga").nullable()
+    val fatiga     = integer("fatigue").nullable()
     override val primaryKey = PrimaryKey(id)
 }
 

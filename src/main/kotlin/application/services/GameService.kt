@@ -116,7 +116,7 @@ class GameService(
             finalBattery         = combined,
             fatiga               = (100 - combined).coerceAtLeast(0),
             semaphoreColor       = semaphoreColor,
-            cognitiveStatus      = cognitive.label,
+            cognitiveSemaphore      = cognitive.label,
             globalRecommendation = globalRec,
             personalizedMessage  = PersonalizedMessage(
                 prefix       = msgResult.prefix,

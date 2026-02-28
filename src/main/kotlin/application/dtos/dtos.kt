@@ -130,7 +130,7 @@ data class CombinedBatteryResponse(
     val finalBattery: Int,
     val fatiga: Int,
     val semaphoreColor: String,
-    val cognitiveStatus: String,
+    val cognitiveSemaphore: String,
     val globalRecommendation: String,
     val personalizedMessage: PersonalizedMessage  // NUEVO — cruzado con rol del usuario
 )

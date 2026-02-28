@@ -1,12 +1,6 @@
 package com.MindStack.application.services
 
-import com.MindStack.application.dtos.DailyCheckinRequest
-import com.MindStack.application.dtos.DailyCheckinResponse
-import com.MindStack.application.dtos.PersonalizedMessage
-import com.MindStack.application.dtos.SemaphoreResponse
-import com.MindStack.application.dtos.SleepEndRequest
-import com.MindStack.application.dtos.SleepStartRequest
-import com.MindStack.application.dtos.SleepStartResponse
+import com.MindStack.application.dtos.*
 import com.MindStack.domain.interfaces.repositories.IDailyCheckinRepository
 import com.MindStack.domain.interfaces.repositories.IMessageRepository
 import com.MindStack.domain.interfaces.repositories.IUserRepository
@@ -23,7 +17,7 @@ class DailyCheckinService(
     private val messageRepo: IMessageRepository
 ) : IDailyCheckinService {
 
-    // ─── Flujo nuevo: Botón Zzz ──────────────────────────────────────────────
+    // ─── Flujo nuevo: Botón Zzz (Paso 1) ──────────────────────────────────────
 
     override suspend fun startSleep(userId: Int, req: SleepStartRequest): SleepStartResponse {
         checkinRepo.findOpenTodayByUser(userId)?.let { existing ->
@@ -41,49 +35,51 @@ class DailyCheckinService(
         )
     }
 
-    // ─── Flujo nuevo: Botón Levantarse ───────────────────────────────────────
+    // ─── Flujo nuevo: Botón Levantarse (Paso 2) ────────────────────────────────
 
     override suspend fun endSleep(
         userId: Int, checkinId: Int, req: SleepEndRequest
     ): DailyCheckinResponse {
         val checkin = checkinRepo.findById(checkinId)
             ?: throw IllegalArgumentException("Check-in no encontrado.")
-        if (checkin.idUser != userId)
-            throw IllegalArgumentException("No autorizado.")
-        if (checkin.sleepEnd != null)
-            throw IllegalArgumentException("Este registro de sueño ya fue cerrado.")
+        if (checkin.idUser != userId) throw IllegalArgumentException("No autorizado.")
+        if (checkin.sleepEnd != null) throw IllegalArgumentException("Este registro de sueño ya fue cerrado.")
 
         val sleepStart = checkin.sleepStart
             ?: throw IllegalArgumentException("El check-in no tiene sleep_start registrado.")
 
+        // Cálculos de sueño
         val hoursSleep   = calculateHoursIso(sleepStart, req.sleepEnd)
         val idealHours   = userRepo.getIdealSleepHours(userId)
         val sleepPercent = (hoursSleep / idealHours) * 100.0
         val sleepDebt    = (idealHours - hoursSleep).coerceAtLeast(0.0)
-        val semaphore    = SemaphoreEngine.evaluate(sleepPercent, req.moodScore)
-        val battery      = when (semaphore.color.name) {
-            "GREEN"  -> 70
-            "YELLOW" -> 45
-            else     -> 20
-        }
 
+        // Evaluación del semáforo (Sueño + Mood)
+        val semaphore = SemaphoreEngine.evaluate(sleepPercent, req.moodScore)
+
+        // ARQUITECTURA: La batería inicial es 0 hasta que el usuario complete los juegos
+        val initialBattery = 0
+
+        // Persistencia en DB (usando statusId que es el FK correcto)
         checkinRepo.closeCheckin(
             checkinId  = checkinId,
             sleepEnd   = req.sleepEnd,
             hoursSleep = hoursSleep,
             idMood     = req.moodScore.coerceIn(1, 5),
-            idSSemaphore   = semaphore.semaphoreId,
+            idSemaphore   = semaphore.semaphoreId, // Corregido de semaphoreId
             sleepDebt  = sleepDebt,
-            battery    = battery
+            battery    = initialBattery
         )
 
-        // Mensaje personalizado cruzando rol × semáforo
+        // Generación de mensaje personalizado cruzando Rol x Semáforo
         val user      = userRepo.findById(userId)
         val msgResult = MessageEngine.getMessage(
             idRol          = user?.idRol,
             semaphoreColor = semaphore.color.name,
-            batteryLevel   = battery
+            batteryLevel   = initialBattery
         )
+
+        // Guardar mensaje en el historial
         messageRepo.create(checkinId, null, msgResult.full)
 
         return buildResponse(
@@ -93,12 +89,12 @@ class DailyCheckinService(
             sleepPercent = sleepPercent,
             moodScore    = req.moodScore,
             semaphore    = semaphore,
-            battery      = battery,
+            battery      = initialBattery,
             msgResult    = msgResult
         )
     }
 
-    // ─── Flujo legacy (compatibilidad) ───────────────────────────────────────
+    // ─── Flujo legacy (compatibilidad con apps que no usan Zzz/Levantarse) ─────
 
     override suspend fun submitCheckin(userId: Int, req: DailyCheckinRequest): DailyCheckinResponse {
         val start        = LocalTime.parse(req.sleepStart)
@@ -108,14 +104,16 @@ class DailyCheckinService(
         val sleepPercent = (hoursSleep / idealHours) * 100.0
         val sleepDebt    = (idealHours - hoursSleep).coerceAtLeast(0.0)
         val semaphore    = SemaphoreEngine.evaluate(sleepPercent, req.moodScore)
-        val battery      = when (semaphore.color.name) {
-            "GREEN"  -> 70; "YELLOW" -> 45; else -> 20
-        }
+
+        // En legacy asignamos batería 0 para ser consistente con la nueva lógica
+        val battery = 0
+
         val checkin = checkinRepo.create(
             idUser = userId, sleepStart = req.sleepStart, sleepEnd = req.sleepEnd,
             hoursSleep = hoursSleep, idMood = req.moodScore.coerceIn(1, 5),
             idSemaphore = semaphore.semaphoreId, sleepDebt = sleepDebt, battery = battery
         )
+
         val user      = userRepo.findById(userId)
         val msgResult = MessageEngine.getMessage(user?.idRol, semaphore.color.name, battery)
         messageRepo.create(checkin.id, null, msgResult.full)
@@ -145,7 +143,7 @@ class DailyCheckinService(
     override suspend fun findOpenToday(userId: Int): DailyCheckin? =
         checkinRepo.findOpenTodayByUser(userId)
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
+    // ─── Helpers Privados ─────────────────────────────────────────────────────
 
     private fun calculateHoursIso(start: String, end: String): Double {
         val s      = LocalDateTime.parse(start).toInstant(ZoneOffset.UTC)

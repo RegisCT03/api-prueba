@@ -98,7 +98,7 @@ class DailyCheckinRepository : IDailyCheckinRepository {
     // ─── Método legacy (mantener para compatibilidad) ─────────────────────────
     override suspend fun create(
         idUser: Int, sleepStart: String, sleepEnd: String,
-        hoursSleep: Double, idMood: Int, idStatus: Int,
+        hoursSleep: Double, idMood: Int, idSemaphore: Int,
         sleepDebt: Double, battery: Int
     ): DailyCheckin = dbQuery {
         val now = Instant.now()
@@ -108,7 +108,7 @@ class DailyCheckinRepository : IDailyCheckinRepository {
             it[DailyCheckinTable.sleepEnd]   = sleepEnd
             it[DailyCheckinTable.hoursSleep] = hoursSleep
             it[DailyCheckinTable.idMood]     = idMood
-            it[DailyCheckinTable.idStatus]   = idStatus
+            it[DailyCheckinTable.idSemaphore]   = idSemaphore
             it[DailyCheckinTable.dateTime]   = now
             it[DailyCheckinTable.sleepDebt]  = sleepDebt
             it[DailyCheckinTable.batteryCog] = battery
@@ -122,7 +122,7 @@ class DailyCheckinRepository : IDailyCheckinRepository {
             sleepEnd   = sleepEnd,
             hoursSleep = hoursSleep,
             idMood     = idMood,
-            idStatus   = idStatus,
+            idSemaphore   = idSemaphore,
             dateTime   = now.toString(),
             sleepDebt  = sleepDebt,
             batteryCog = battery,
@@ -168,7 +168,7 @@ class DailyCheckinRepository : IDailyCheckinRepository {
         sleepEnd: String,
         hoursSleep: Double,
         idMood: Int,
-        idStatus: Int,
+        idSemaphore: Int,
         sleepDebt: Double,
         battery: Int
     ): DailyCheckin = dbQuery {
@@ -176,7 +176,7 @@ class DailyCheckinRepository : IDailyCheckinRepository {
             it[DailyCheckinTable.sleepEnd]   = sleepEnd
             it[DailyCheckinTable.hoursSleep] = hoursSleep
             it[DailyCheckinTable.idMood]     = idMood
-            it[DailyCheckinTable.idStatus]   = idStatus
+            it[DailyCheckinTable.idSemaphore]   = idSemaphore
             it[DailyCheckinTable.sleepDebt]  = sleepDebt
             it[DailyCheckinTable.batteryCog] = battery
             it[DailyCheckinTable.fatiga]     = (100 - battery).coerceAtLeast(0)
@@ -223,7 +223,7 @@ class DailyCheckinRepository : IDailyCheckinRepository {
         sleepEnd   = row[DailyCheckinTable.sleepEnd],
         hoursSleep = row[DailyCheckinTable.hoursSleep],
         idMood     = row[DailyCheckinTable.idMood],
-        idStatus   = row[DailyCheckinTable.idStatus],
+        idSemaphore   = row[DailyCheckinTable.idSemaphore],
         dateTime   = row[DailyCheckinTable.dateTime].toString(),
         sleepDebt  = row[DailyCheckinTable.sleepDebt],
         batteryCog = row[DailyCheckinTable.batteryCog],

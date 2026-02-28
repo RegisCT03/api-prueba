@@ -9,7 +9,7 @@ object SemaphoreEngine {
         val color: TrafficLight,
         val label: String,
         val recommendation: String,
-        val statusId: Int       // 1=verde, 2=amarillo, 3=rojo  (FK → semaforo)
+        val semaphoreId: Int       // 1=verde, 2=amarillo, 3=rojo  (FK → semaforo)
     )
 
     fun evaluate(sleepPercent: Double, moodScore: Int): SemaphoreResult = when {
@@ -17,19 +17,19 @@ object SemaphoreEngine {
             color          = TrafficLight.GREEN,
             label          = "Funcionamiento óptimo",
             recommendation = "Estás en tu mejor momento. Ideal para tareas cognitivamente exigentes: estudio, análisis o decisiones importantes.",
-            statusId       = 1
+            semaphoreId       = 1
         )
         sleepPercent >= 70.0 && moodScore >= 2 -> SemaphoreResult(
             color          = TrafficLight.YELLOW,
             label          = "Rendimiento reducido",
             recommendation = "Energía moderada. Puedes trabajar en tareas rutinarias. Evita decisiones de alto impacto y toma descansos cortos (20 min).",
-            statusId       = 2
+            semaphoreId    = 2
         )
         else -> SemaphoreResult(
             color          = TrafficLight.RED,
             label          = "Riesgo de crisis cognitiva",
             recommendation = "Tu cuerpo y mente necesitan recuperación urgente. Prioriza descansar antes de cualquier actividad que requiera concentración.",
-            statusId       = 3
+            semaphoreId       = 3
         )
     }
 }
