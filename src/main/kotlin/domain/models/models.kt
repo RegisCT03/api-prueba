@@ -19,10 +19,10 @@ data class DailyCheckin(
     val id: Int = 0,
     val idUser: Int,
     val sleepStart: String? = null,
-    val sleepEnd: String? = null,         // null mientras no presione Levantarse
+    val sleepEnd: String? = null,
     val hoursSleep: Double? = null,
     val idMood: Int? = null,
-    val idStatus: Int? = null,
+    val idSemaphore: Int? = null,
     val dateTime: String,
     val sleepDebt: Double? = null,
     val batteryCog: Int? = null,

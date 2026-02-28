@@ -20,7 +20,7 @@ interface IDailyCheckinRepository {
     // ─── Existentes ───────────────────────────────────────────────────────────
     suspend fun create(
         idUser: Int, sleepStart: String, sleepEnd: String,
-        hoursSleep: Double, idMood: Int, idStatus: Int,
+        hoursSleep: Double, idMood: Int, idSemaphore: Int,
         sleepDebt: Double, battery: Int
     ): DailyCheckin
     suspend fun findById(id: Int): DailyCheckin?
@@ -41,7 +41,7 @@ interface IDailyCheckinRepository {
         sleepEnd: String,
         hoursSleep: Double,
         idMood: Int,
-        idStatus: Int,
+        idSemaphore: Int,
         sleepDebt: Double,
         battery: Int
     ): DailyCheckin

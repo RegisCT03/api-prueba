@@ -101,7 +101,7 @@ class GameService(
         val combined   = CognitiveBatteryEngine.combinedBattery(batteryA, batteryB)
         val cognitive  = CognitiveBatteryEngine.evaluate(combined)
 
-        val semaphoreColor = when (checkin.idStatus) { 1 -> "GREEN"; 2 -> "YELLOW"; else -> "RED" }
+        val semaphoreColor = when (checkin.idSemaphore) { 1 -> "GREEN"; 2 -> "YELLOW"; else -> "RED" }
         val globalRec      = CognitiveBatteryEngine.globalRecommendation(semaphoreColor, combined)
 
         // Mensaje personalizado con rol del usuario y batería final

@@ -72,7 +72,7 @@ class DailyCheckinService(
             sleepEnd   = req.sleepEnd,
             hoursSleep = hoursSleep,
             idMood     = req.moodScore.coerceIn(1, 5),
-            idStatus   = semaphore.statusId,
+            idSSemaphore   = semaphore.semaphoreId,
             sleepDebt  = sleepDebt,
             battery    = battery
         )
@@ -114,7 +114,7 @@ class DailyCheckinService(
         val checkin = checkinRepo.create(
             idUser = userId, sleepStart = req.sleepStart, sleepEnd = req.sleepEnd,
             hoursSleep = hoursSleep, idMood = req.moodScore.coerceIn(1, 5),
-            idStatus = semaphore.statusId, sleepDebt = sleepDebt, battery = battery
+            idSemaphore = semaphore.semaphoreId, sleepDebt = sleepDebt, battery = battery
         )
         val user      = userRepo.findById(userId)
         val msgResult = MessageEngine.getMessage(user?.idRol, semaphore.color.name, battery)
