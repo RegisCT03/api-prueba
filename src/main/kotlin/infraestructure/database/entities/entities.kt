@@ -4,8 +4,6 @@ import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.javatime.timestamp
 
-// ─── Catálogos ────────────────────────────────────────────────────────────────
-
 object RolTable : Table("rol") {
     val id  = integer("id").autoIncrement()
     val rol = varchar("rol", 100)
@@ -31,14 +29,12 @@ object GameTable : Table("game") {
     override val primaryKey = PrimaryKey(id)
 }
 
-// ─── Usuarios ─────────────────────────────────────────────────────────────────
-
 object UsersTable : Table("users") {
     val id              = integer("id").autoIncrement()
     val name            = varchar("name", 100)
     val lastName        = varchar("last_name", 100)
     val email           = varchar("email", 255)
-    val password        = varchar("password", 255)   // 255 requerido por bcrypt
+    val password        = varchar("password", 255)
     val dateOfBirth     = date("date_of_birth").nullable()
     val gender          = varchar("gender", 100).nullable()
     val idRol           = integer("id_rol").references(RolTable.id).nullable()
@@ -47,20 +43,14 @@ object UsersTable : Table("users") {
     override val primaryKey = PrimaryKey(id)
 }
 
-// ─── Streaks ──────────────────────────────────────────────────────────────────
-
 object StreaksHistoryTable : Table("streaks_history") {
     val id        = integer("id").autoIncrement()
     val userId    = integer("user_id").references(UsersTable.id).nullable()
     val startDate = date("start_date")
     val endDate   = date("end_date").nullable()
-    // FIX: default = 1, no 0. Un streak recién creado empieza en el día 1.
-    // El default 0 causaba el ALTER TABLE que PostgreSQL bloqueaba por la vista.
     val daysCount = integer("days_count").default(1)
     override val primaryKey = PrimaryKey(id)
 }
-
-// ─── Daily Check-in ───────────────────────────────────────────────────────────
 
 object DailyCheckinTable : Table("daily_checkin") {
     val id          = integer("id").autoIncrement()
@@ -73,35 +63,29 @@ object DailyCheckinTable : Table("daily_checkin") {
     val dateTime    = timestamp("date_time")
     val sleepDebt   = double("sleep_debt").nullable()
     val batteryCog  = integer("battery_cog").nullable()
-    // FIX: el nombre de columna en BD es "fatigue" — Exposed usa este string
-    // para construir el SQL. El campo Kotlin se llama "fatiga" pero apunta a "fatigue".
     val fatiga      = integer("fatigue").nullable()
     override val primaryKey = PrimaryKey(id)
 }
 
-// ─── Game Sessions ────────────────────────────────────────────────────────────
-
 object GameSessionsTable : Table("game_sessions") {
     val id             = integer("id").autoIncrement()
     val idDailyCheckin = integer("id_daily_checkin").references(DailyCheckinTable.id)
-    val startTime      = timestamp("start_time")
-    val endTime        = timestamp("end_time")
+    val startTime      = timestamp("start_time").nullable()
+    val endTime        = timestamp("end_time").nullable()
     val idGame         = integer("id_game").references(GameTable.id).nullable()
     val scoreValue     = double("score_value").nullable()
     val battery        = integer("battery").nullable()
-    val metadata       = text("metadata").nullable()
+    // FIX: usar JsonbColumnType en lugar de text() o varchar()
+    // PGobject con type="jsonb" hace el binding correcto al driver JDBC
+    val metadata       = jsonb("metadata").nullable()
     override val primaryKey = PrimaryKey(id)
 }
 
-// ─── Mensajes ─────────────────────────────────────────────────────────────────
-
 object MessageTable : Table("message") {
     val id             = integer("id").autoIncrement()
-    // FIX: ambos nullable — mensaje de sleep O de juego, nunca los dos a la vez
     val idDailyCheckin = integer("id_daily_checkin")
         .references(DailyCheckinTable.id)
         .nullable()
-    // FIX: columna id_game_session agregada (faltaba — causaba 500 en juegos)
     val idGameSession  = integer("id_game_session")
         .references(GameSessionsTable.id)
         .nullable()
